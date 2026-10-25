@@ -1,0 +1,9 @@
+services:
+  api:
+    build: .
+    image: app-prediction-api:latest
+    ports:
+      - "8000:8000"
+    environment:
+      PREDICTION_THRESHOLD: "0.5"
+    restart: unless-stopped

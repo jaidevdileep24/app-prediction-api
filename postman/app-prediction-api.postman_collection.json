@@ -1,0 +1,73 @@
+{
+  "info": {
+    "name": "App Prediction API",
+    "description": "Run `docker compose up`, then Run Collection. Every request has tests for status code, fields and latency.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "pm.test('model loaded', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+        ]}
+      }]
+    },
+    {
+      "name": "Predict - engaged user",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/predict",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"sessions_last_7d\": 25,\n  \"avg_session_minutes\": 15,\n  \"days_since_signup\": 30,\n  \"purchases_last_30d\": 4,\n  \"push_enabled\": true,\n  \"platform\": \"ios\"\n}" }
+      },
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "const b = pm.response.json();",
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "pm.test('prediction + confidence', () => { pm.expect(b.prediction).to.eql('likely_to_purchase'); pm.expect(b.confidence).to.be.within(0.5, 1); });",
+          "pm.test('under 2 seconds', () => pm.expect(pm.response.responseTime).to.be.below(2000));"
+        ]}
+      }]
+    },
+    {
+      "name": "Predict - inactive user",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/predict",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"sessions_last_7d\": 0,\n  \"avg_session_minutes\": 0.5,\n  \"days_since_signup\": 600,\n  \"purchases_last_30d\": 0,\n  \"push_enabled\": false,\n  \"platform\": \"android\"\n}" }
+      },
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "const b = pm.response.json();",
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "pm.test('unlikely to purchase', () => pm.expect(b.prediction).to.eql('unlikely_to_purchase'));"
+        ]}
+      }]
+    },
+    {
+      "name": "Predict - invalid input (422)",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/predict",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"sessions_last_7d\": -3,\n  \"avg_session_minutes\": 5,\n  \"days_since_signup\": 10,\n  \"purchases_last_30d\": 0,\n  \"push_enabled\": true,\n  \"platform\": \"windows\"\n}" }
+      },
+      "event": [{
+        "listen": "test",
+        "script": { "type": "text/javascript", "exec": [
+          "pm.test('bad input rejected with 422', () => pm.response.to.have.status(422));"
+        ]}
+      }]
+    }
+  ]
+}
